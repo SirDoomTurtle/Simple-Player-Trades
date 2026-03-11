@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "simple-player-trades",
+	"version": "${version}",
+	"name": "Simple Player Trades",
+	"description": "Adds a simple /trade [player name] command to allow for easy trading between players.",
+	"authors": [
+		"SirDoomTurtle"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/simple-player-trades/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"dooms.simpleplayertrades.SimplePlayerTrades"
+		],
+		"client": [
+			"dooms.simpleplayertrades.SimplePlayerTradesClient"
+		]
+	},
+	"mixins": [
+		"simple-player-trades.mixins.json",
+		{
+			"config": "simple-player-trades.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.18.4",
+		"minecraft": "~1.21.11",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
