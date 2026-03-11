@@ -4,10 +4,14 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.SimpleMenuProvider;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
 
 /**
  * Central manager for all trades.
@@ -32,6 +36,8 @@ public class TradeManager {
 
     // Key: target players UUID
     private final Map<UUID, ActiveTrade> pendingTradesByTarget = new HashMap<>();
+
+    private final Map<UUID, ActiveTrade> activeTrades = new HashMap<>();
 
     // --- Event Registration ---
 
@@ -97,10 +103,12 @@ public class TradeManager {
         sendMessage(acceptor,  "§aTrade with §e" + requester.getName().getString() + " §aaccepted!");
         sendMessage(requester, "§e" + acceptor.getName().getString() + " §aaccepted your trade request!");
 
-        // TODO: open the trade GUI for both players here (next step)
+
 
         SimplePlayerTrades.LOGGER.info("[Trades] {} accepted a trade request from {}",
                 acceptor.getName().getString(), requester.getName().getString());
+
+        openTradeGui(requester, acceptor, trade, server);
     }
 
     public void denyTradeRequest(ServerPlayer denier, ServerPlayer requester, MinecraftServer server) {
@@ -199,5 +207,93 @@ public class TradeManager {
 
     private void sendMessage(ServerPlayer player, String message) {
         player.sendSystemMessage(Component.literal(message));
+    }
+
+    private void openTradeGui(ServerPlayer requester, ServerPlayer acceptor, ActiveTrade trade, MinecraftServer server) {
+        SimpleContainer inventory = trade.getTradeInventory();
+
+        TradeScreenHandler.setupLayout(inventory);
+
+        activeTrades.put(requester.getUUID(), trade);
+        activeTrades.put(acceptor.getUUID(), trade);
+        trade.setState(ActiveTrade.TradeState.ACTIVE);
+
+        requester.openMenu(new SimpleMenuProvider(
+                (syncId, playerInventory, player) ->
+                        new TradeScreenHandler(syncId, playerInventory, inventory, server, true),
+                Component.literal(requester.getName().getString())
+                        .append(Component.literal(" | ").withStyle(s -> s.withColor(0xAAAAAA)))
+                        .append(Component.literal(acceptor.getName().getString()))
+        ));
+
+        acceptor.openMenu(new SimpleMenuProvider(
+                (syncId, playerInventory, player) ->
+                        new TradeScreenHandler(syncId, playerInventory, inventory, server, false),
+                Component.literal(acceptor.getName().getString())
+                        .append(Component.literal(" | ").withStyle(s -> s.withColor(0xAAAAAA)))
+                        .append(Component.literal(requester.getName().getString()))
+        ));
+    }
+
+    public void handleGuiClose(ServerPlayer player, MinecraftServer server) {
+        UUID playerUuid = player.getUUID();
+
+        ActiveTrade trade = activeTrades.get(playerUuid);
+        if (trade == null) return;
+
+        // Remove FIRST before doing anything else
+        // This breaks the recursion chain
+        activeTrades.remove(trade.getRequesterUuid());
+        activeTrades.remove(trade.getTargetUuid());
+
+        // Now safe to get the other player and close their container
+        ServerPlayer otherPlayer = server.getPlayerList().getPlayer(
+                trade.getOtherPlayerUuid(playerUuid)
+        );
+
+        returnItems(trade, server);
+
+        if (otherPlayer != null) {
+            otherPlayer.closeContainer();
+            sendMessage(otherPlayer, "§e" + player.getName().getString() + " §cclosed the trade.");
+        }
+
+        sendMessage(player, "§cTrade cancelled.");
+
+        SimplePlayerTrades.LOGGER.info("[Trades] Trade between {} and {} was cancelled by GUI close.",
+                trade.getRequesterName(), trade.getTargetName());
+    }
+
+    private void returnItems(ActiveTrade trade, MinecraftServer server) {
+        SimpleContainer inventory = trade.getTradeInventory();
+
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (stack.isEmpty()) continue;
+
+            int col = i % 9;
+            int row = i / 9;
+
+            // Border and button slots should never have real items, but skip them anyway
+            if (col == 4 || row == 5) continue;
+
+            // Ownership based on inventory index
+            UUID ownerUuid = (col < 4)
+                    ? trade.getRequesterUuid()
+                    : trade.getTargetUuid();
+
+            ServerPlayer owner = server.getPlayerList().getPlayer(ownerUuid);
+
+            if (owner != null) {
+                if (!owner.getInventory().add(stack)) {
+                    owner.drop(stack, false);
+                }
+            } else {
+                SimplePlayerTrades.LOGGER.warn("[Trades] Could not return item {} to offline player {}",
+                        stack.getItem(), ownerUuid);
+            }
+
+            inventory.setItem(i, ItemStack.EMPTY);
+        }
     }
 }

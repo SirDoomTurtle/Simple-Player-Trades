@@ -1,6 +1,9 @@
 package dooms.simpleplayertrades;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.SimpleContainer;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -13,7 +16,6 @@ public class ActiveTrade {
     public enum TradeState {
         PENDING,
         ACTIVE
-        // CONFIRMING will be added when we implement the GUI
     }
 
     private final UUID requesterUuid;
@@ -21,6 +23,7 @@ public class ActiveTrade {
     private final String requesterName;
     private final String targetName;
     private TradeState state;
+    private final SimpleContainer tradeInventory = new SimpleContainer(54);
 
     public ActiveTrade(ServerPlayer requester, ServerPlayer target) {
         this.requesterUuid = requester.getUUID();
@@ -37,6 +40,7 @@ public class ActiveTrade {
     public String getRequesterName() { return requesterName; }
     public String getTargetName()    { return targetName; }
     public TradeState getState()   { return state; }
+    public SimpleContainer getTradeInventory() { return tradeInventory; }
 
     // --- State ---
 
