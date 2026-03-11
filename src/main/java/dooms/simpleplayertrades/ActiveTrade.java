@@ -13,6 +13,8 @@ import java.util.UUID;
  */
 public class ActiveTrade {
 
+    // these enum states are only for the trade object itself, other states such as trade confirmation or denial
+    // is handled per each player
     public enum TradeState {
         PENDING,
         ACTIVE
@@ -22,6 +24,8 @@ public class ActiveTrade {
     private final UUID targetUuid;
     private final String requesterName;
     private final String targetName;
+    private boolean requesterConfirmed = false;
+    private boolean targetConfirmed = false;
     private TradeState state;
     private final SimpleContainer tradeInventory = new SimpleContainer(54);
 
@@ -62,5 +66,45 @@ public class ActiveTrade {
         if (requesterUuid.equals(playerUuid)) return targetUuid;
         if (targetUuid.equals(playerUuid))    return requesterUuid;
         throw new IllegalArgumentException("UUID " + playerUuid + " is not part of this trade.");
+    }
+
+    /**
+     * Flips the confirmation state for the given player.
+     * Returns the new confirmation state after toggling.
+     */
+    public boolean toggleConfirm(boolean isRequester) {
+        if (isRequester) {
+            requesterConfirmed = !requesterConfirmed;
+            return requesterConfirmed;
+        } else {
+            targetConfirmed = !targetConfirmed;
+            return targetConfirmed;
+        }
+    }
+
+    /**
+     * Returns true if the given player has confirmed the trade.
+     */
+    public boolean isConfirmed(boolean isRequester) {
+        return isRequester ? requesterConfirmed : targetConfirmed;
+    }
+
+    /**
+     * Returns true only when both players have confirmed.
+     */
+    public boolean isBothConfirmed() {
+        return requesterConfirmed && targetConfirmed;
+    }
+
+    /**
+     * Resets the confirmation for a specific player.
+     * Called when that player moves an item in or out of the trade.
+     */
+    public void resetConfirm(boolean isRequester) {
+        if (isRequester) {
+            requesterConfirmed = false;
+        } else {
+            targetConfirmed = false;
+        }
     }
 }

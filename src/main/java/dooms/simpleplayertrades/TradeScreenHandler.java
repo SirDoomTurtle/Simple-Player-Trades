@@ -8,23 +8,30 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.inventory.ClickType;
 
 public class TradeScreenHandler extends AbstractContainerMenu {
 
     private final SimpleContainer tradeInventory;
     private final MinecraftServer server;
     private final boolean isRequester;
+    private final ActiveTrade trade;
 
-    public TradeScreenHandler(int syncId, Inventory playerInventory, SimpleContainer tradeInventory, MinecraftServer server, boolean isRequester) {
+    private static final int ACCEPT_SLOT = 46;
+    private static final int DENY_SLOT = 52;
+
+    public TradeScreenHandler(int syncId, Inventory playerInventory, SimpleContainer tradeInventory, MinecraftServer server, boolean isRequester, ActiveTrade trade) {
         super(MenuType.GENERIC_9x6, syncId);
 
         this.tradeInventory = tradeInventory;
         this.server = server;
         this.isRequester = isRequester;
+        this.trade = trade;
 
 
         /*
@@ -129,6 +136,9 @@ public class TradeScreenHandler extends AbstractContainerMenu {
         ItemStack stack = slot.getItem();
         ItemStack originalStack = stack.copy();
 
+        trade.resetConfirm(isRequester);
+        updateConfirmVisuals(tradeInventory, trade);
+
         if (slotIndex < 54) {
             // Shift-clicking from trade inventory → move to player inventory
             if (!moveItemStackTo(stack, 54, 90, false)) {
@@ -168,4 +178,49 @@ public class TradeScreenHandler extends AbstractContainerMenu {
         super.removed(player);
         TradeManager.getInstance().handleGuiClose((ServerPlayer) player, server);
     }
+
+    @Override
+    public void clicked(int slotIndex, int button, ClickType clickType, Player player) {
+        // Intercept accept button
+        if (slotIndex == ACCEPT_SLOT) {
+            TradeManager.getInstance().handleConfirm(trade, (ServerPlayer) player, server, isRequester);
+            return;
+        }
+
+        // Intercept deny button
+        if (slotIndex == DENY_SLOT) {
+            TradeManager.getInstance().handleDeny(trade, (ServerPlayer) player, server);
+            return;
+        }
+
+        // For any click on the player's own trade item slots,
+        // reset their confirmation — they are changing what they're offering
+        if (slotIndex >= 0 && slotIndex < 54) {
+            int col = slotIndex % 9;
+            int row = slotIndex / 9;
+            boolean isOwnItemSlot = col < 4 && row < 5; // always visual left side = own side
+            if (isOwnItemSlot) {
+                trade.resetConfirm(isRequester);
+                updateConfirmVisuals(tradeInventory, trade);
+            }
+        }
+
+        super.clicked(slotIndex, button, clickType, player);
+    }
+
+    public static void updateConfirmVisuals(SimpleContainer inventory, ActiveTrade trade) {
+        boolean anyConfirmed = trade.isConfirmed(true) || trade.isConfirmed(false);
+
+        ItemStack divider = new ItemStack(anyConfirmed
+                ? Items.LIME_STAINED_GLASS_PANE
+                : Items.BLACK_STAINED_GLASS_PANE);
+        divider.set(DataComponents.CUSTOM_NAME,
+                Component.literal(" ").withStyle(s -> s.withItalic(false)));
+
+        // Only update rows 0-4 of the divider — row 5 stays black as part of the button row
+        for (int row = 0; row < 5; row++) {
+            inventory.setItem(4 + row * 9, divider.copy());
+        }
+    }
+
 }

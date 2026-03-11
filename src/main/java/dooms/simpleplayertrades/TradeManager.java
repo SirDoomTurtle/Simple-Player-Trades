@@ -4,13 +4,13 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 
 /**
@@ -220,7 +220,7 @@ public class TradeManager {
 
         requester.openMenu(new SimpleMenuProvider(
                 (syncId, playerInventory, player) ->
-                        new TradeScreenHandler(syncId, playerInventory, inventory, server, true),
+                        new TradeScreenHandler(syncId, playerInventory, inventory, server, true, trade),
                 Component.literal(requester.getName().getString())
                         .append(Component.literal(" | ").withStyle(s -> s.withColor(0xAAAAAA)))
                         .append(Component.literal(acceptor.getName().getString()))
@@ -228,7 +228,7 @@ public class TradeManager {
 
         acceptor.openMenu(new SimpleMenuProvider(
                 (syncId, playerInventory, player) ->
-                        new TradeScreenHandler(syncId, playerInventory, inventory, server, false),
+                        new TradeScreenHandler(syncId, playerInventory, inventory, server, false, trade),
                 Component.literal(acceptor.getName().getString())
                         .append(Component.literal(" | ").withStyle(s -> s.withColor(0xAAAAAA)))
                         .append(Component.literal(requester.getName().getString()))
@@ -237,31 +237,14 @@ public class TradeManager {
 
     public void handleGuiClose(ServerPlayer player, MinecraftServer server) {
         UUID playerUuid = player.getUUID();
-
         ActiveTrade trade = activeTrades.get(playerUuid);
         if (trade == null) return;
 
-        // Remove FIRST before doing anything else
-        // This breaks the recursion chain
-        activeTrades.remove(trade.getRequesterUuid());
-        activeTrades.remove(trade.getTargetUuid());
-
-        // Now safe to get the other player and close their container
-        ServerPlayer otherPlayer = server.getPlayerList().getPlayer(
-                trade.getOtherPlayerUuid(playerUuid)
+        cancelActiveTrade(
+                trade, player, server,
+                "§cTrade cancelled.",
+                "§e" + player.getName().getString() + " §cclosed the trade."
         );
-
-        returnItems(trade, server);
-
-        if (otherPlayer != null) {
-            otherPlayer.closeContainer();
-            sendMessage(otherPlayer, "§e" + player.getName().getString() + " §cclosed the trade.");
-        }
-
-        sendMessage(player, "§cTrade cancelled.");
-
-        SimplePlayerTrades.LOGGER.info("[Trades] Trade between {} and {} was cancelled by GUI close.",
-                trade.getRequesterName(), trade.getTargetName());
     }
 
     private void returnItems(ActiveTrade trade, MinecraftServer server) {
@@ -296,4 +279,127 @@ public class TradeManager {
             inventory.setItem(i, ItemStack.EMPTY);
         }
     }
+
+
+    private void cancelActiveTrade(ActiveTrade trade, ServerPlayer initiator, MinecraftServer server, String initiatorMsg, String otherMsg) {
+        // Remove first to prevent recursion from closeContainer()
+        activeTrades.remove(trade.getRequesterUuid());
+        activeTrades.remove(trade.getTargetUuid());
+
+        returnItems(trade, server);
+
+        ServerPlayer other = server.getPlayerList().getPlayer(
+                trade.getOtherPlayerUuid(initiator.getUUID())
+        );
+
+        if (other != null) {
+            other.closeContainer();
+            sendMessage(other, otherMsg);
+        }
+
+        initiator.closeContainer();
+        sendMessage(initiator, initiatorMsg);
+
+        SimplePlayerTrades.LOGGER.info("[Trades] Trade between {} and {} was cancelled.",
+                trade.getRequesterName(), trade.getTargetName());
+    }
+
+
+    public void handleDeny(ActiveTrade trade, ServerPlayer player, MinecraftServer server) {
+        if (!activeTrades.containsKey(player.getUUID())) return;
+
+        cancelActiveTrade(
+                trade, player, server,
+                "§cYou cancelled the trade.",
+                "§e" + player.getName().getString() + " §cdenied the trade."
+        );
+    }
+
+
+    public void handleConfirm(ActiveTrade trade, ServerPlayer player, MinecraftServer server, boolean isRequester) {
+        if (!activeTrades.containsKey(player.getUUID())) return;
+
+        boolean nowConfirmed = trade.toggleConfirm(isRequester);
+        TradeScreenHandler.updateConfirmVisuals(trade.getTradeInventory(), trade);
+
+        ServerPlayer other = server.getPlayerList().getPlayer(
+                trade.getOtherPlayerUuid(player.getUUID())
+        );
+
+        if (nowConfirmed) {
+            sendMessage(player, "§aTrade confirmed! Waiting for the other player...");
+            if (other != null) {
+                sendMessage(other, "§e" + player.getName().getString() + " §aconfirmed the trade!");
+                playPling(other);
+            }
+            playPling(player);
+        } else {
+            sendMessage(player, "§cTrade unconfirmed.");
+            if (other != null) {
+                sendMessage(other, "§e" + player.getName().getString() + " §cunconfirmed the trade.");
+            }
+        }
+
+        if (trade.isBothConfirmed()) {
+            executeTrade(trade, server);
+        }
+    }
+
+
+
+    private void executeTrade(ActiveTrade trade, MinecraftServer server) {
+        // Remove first so closeContainer() calls don't trigger handleGuiClose logic
+        activeTrades.remove(trade.getRequesterUuid());
+        activeTrades.remove(trade.getTargetUuid());
+
+        SimpleContainer inventory = trade.getTradeInventory();
+
+        // Collect items from each side before clearing
+        List<ItemStack> requesterItems = new ArrayList<>();
+        List<ItemStack> targetItems    = new ArrayList<>();
+
+        for (int i = 0; i < 45; i++) { // rows 0-4 only, skip button row
+            ItemStack stack = inventory.getItem(i);
+            if (stack.isEmpty()) continue;
+            int col = i % 9;
+            if      (col < 4) requesterItems.add(stack.copy());
+            else if (col > 4) targetItems.add(stack.copy());
+            inventory.setItem(i, ItemStack.EMPTY);
+        }
+
+        ServerPlayer requester = server.getPlayerList().getPlayer(trade.getRequesterUuid());
+        ServerPlayer target    = server.getPlayerList().getPlayer(trade.getTargetUuid());
+
+        // Give target's items to requester
+        if (requester != null) {
+            for (ItemStack stack : targetItems) {
+                if (!requester.getInventory().add(stack)) {
+                    requester.drop(stack, false);
+                }
+            }
+            requester.closeContainer();
+            sendMessage(requester, "§aTrade completed successfully!");
+        }
+
+        // Give requester's items to target
+        if (target != null) {
+            for (ItemStack stack : requesterItems) {
+                if (!target.getInventory().add(stack)) {
+                    target.drop(stack, false);
+                }
+            }
+            target.closeContainer();
+            sendMessage(target, "§aTrade completed successfully!");
+        }
+
+        SimplePlayerTrades.LOGGER.info("[Trades] Trade between {} and {} completed successfully.",
+                trade.getRequesterName(), trade.getTargetName());
+    }
+
+
+    private void playPling(ServerPlayer player) {
+        if (player == null) return;
+        player.playSound(SoundEvents.NOTE_BLOCK_PLING.value(), 1.0f, 2.0f);
+    }
+
 }
