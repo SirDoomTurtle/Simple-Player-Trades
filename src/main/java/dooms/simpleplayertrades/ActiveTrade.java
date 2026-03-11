@@ -5,11 +5,6 @@ import java.util.UUID;
 
 /**
  * Represents a single trade between two players.
- *
- * Lifecycle:
- *   PENDING  → Player A sent /trade to Player B, waiting for acceptance
- *   ACTIVE   → Both players have the GUI open (implemented in a later step)
- *
  * One instance of this class exists per ongoing trade.
  * The TradeManager is responsible for creating and destroying these instances.
  */
@@ -23,7 +18,7 @@ public class ActiveTrade {
 
     private final UUID requesterUuid;
     private final UUID targetUuid;
-    private final String requesterName; // stored for logging/messages after potential disconnect
+    private final String requesterName;
     private final String targetName;
     private TradeState state;
 
