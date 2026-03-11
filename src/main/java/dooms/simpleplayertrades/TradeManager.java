@@ -221,17 +221,13 @@ public class TradeManager {
         requester.openMenu(new SimpleMenuProvider(
                 (syncId, playerInventory, player) ->
                         new TradeScreenHandler(syncId, playerInventory, inventory, server, true, trade),
-                Component.literal(requester.getName().getString())
-                        .append(Component.literal(" | ").withStyle(s -> s.withColor(0xAAAAAA)))
-                        .append(Component.literal(acceptor.getName().getString()))
+                Component.literal("Trade")
         ));
 
         acceptor.openMenu(new SimpleMenuProvider(
                 (syncId, playerInventory, player) ->
                         new TradeScreenHandler(syncId, playerInventory, inventory, server, false, trade),
-                Component.literal(acceptor.getName().getString())
-                        .append(Component.literal(" | ").withStyle(s -> s.withColor(0xAAAAAA)))
-                        .append(Component.literal(requester.getName().getString()))
+                Component.literal("Trade")
         ));
     }
 
