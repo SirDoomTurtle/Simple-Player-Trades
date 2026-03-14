@@ -39,7 +39,7 @@ public class TradeCommand {
                                     .executes(TradeCommand::executeTradeDeny))
             );
 
-            // /tradecancel  (no argument — cancels whatever you're currently in)
+            // /tradecancel
             dispatcher.register(
                     Commands.literal("tradecancel")
                             .executes(TradeCommand::executeTradeCancel)
@@ -48,7 +48,6 @@ public class TradeCommand {
     }
 
     // --- Command Executors ---
-    // Pattern: get the source player, sanity check, delegate to TradeManager
 
     private static int executeTrade(CommandContext<CommandSourceStack> context) {
         try {

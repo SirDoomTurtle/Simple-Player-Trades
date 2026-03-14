@@ -1,9 +1,6 @@
 package dooms.simpleplayertrades;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
-
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -13,8 +10,7 @@ import java.util.UUID;
  */
 public class ActiveTrade {
 
-    // these enum states are only for the trade object itself, other states such as trade confirmation or denial
-    // is handled per each player
+
     public enum TradeState {
         PENDING,
         ACTIVE

@@ -3,13 +3,13 @@
 	"id": "simple-player-trades",
 	"version": "${version}",
 	"name": "Simple Player Trades",
-	"description": "Adds a simple /trade [player name] command to allow for easy trading between players.",
+	"description": "Adds a simple /trade <player> command to allow for easy trading between players.",
 	"authors": [
 		"SirDoomTurtle"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://www.youtube.com/@SirDoomTurtle",
+		"sources": "https://github.com/SirDoomTurtle/Simple-Player-Trades"
 	},
 	"license": "CC0-1.0",
 	"icon": "assets/simple-player-trades/icon.png",
@@ -20,11 +20,6 @@
 		]
 	},
 	"mixins": [
-		"simple-player-trades.mixins.json",
-		{
-			"config": "simple-player-trades.client.mixins.json",
-			"environment": "client"
-		}
 	],
 	"depends": {
 		"fabricloader": ">=0.18.4",

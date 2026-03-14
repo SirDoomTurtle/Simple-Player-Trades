@@ -5,11 +5,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.item.ItemStack;
-
 import java.util.*;
 
 
@@ -81,12 +79,21 @@ public class TradeManager {
                         "  §7Type §e/tradedeny "   + sender.getName().getString() + " §7to deny."
         );
 
+        // write into log file
+        TradeLogger.getInstance().logRequest(
+                sender.getName().getString(),
+                target.getName().getString()
+        );
+
         SimplePlayerTrades.LOGGER.info("[Trades] {} sent a trade request to {}",
                 sender.getName().getString(), target.getName().getString());
+
+
+
     }
 
     public void acceptTradeRequest(ServerPlayer acceptor, ServerPlayer requester, MinecraftServer server) {
-        UUID acceptorUuid  = acceptor.getUUID();
+        UUID acceptorUuid = acceptor.getUUID();
         UUID requesterUuid = requester.getUUID();
 
         ActiveTrade trade = pendingTradesByTarget.get(acceptorUuid);
@@ -100,7 +107,7 @@ public class TradeManager {
         pendingTradesByRequester.remove(requesterUuid);
         pendingTradesByTarget.remove(acceptorUuid);
 
-        sendMessage(acceptor,  "§aTrade with §e" + requester.getName().getString() + " §aaccepted!");
+        sendMessage(acceptor, "§aTrade with §e" + requester.getName().getString() + " §aaccepted!");
         sendMessage(requester, "§e" + acceptor.getName().getString() + " §aaccepted your trade request!");
 
 
@@ -112,7 +119,7 @@ public class TradeManager {
     }
 
     public void denyTradeRequest(ServerPlayer denier, ServerPlayer requester, MinecraftServer server) {
-        UUID denierUuid    = denier.getUUID();
+        UUID denierUuid = denier.getUUID();
         UUID requesterUuid = requester.getUUID();
 
         ActiveTrade trade = pendingTradesByTarget.get(denierUuid);
@@ -125,7 +132,7 @@ public class TradeManager {
         pendingTradesByRequester.remove(requesterUuid);
         pendingTradesByTarget.remove(denierUuid);
 
-        sendMessage(denier,    "§cTrade request from §e" + requester.getName().getString() + " §cdenied.");
+        sendMessage(denier, "§cTrade request from §e" + requester.getName().getString() + " §cdenied.");
         sendMessage(requester, "§e" + denier.getName().getString() + " §cdenied your trade request.");
 
         SimplePlayerTrades.LOGGER.info("[Trades] {} denied a trade request from {}",
@@ -185,6 +192,8 @@ public class TradeManager {
                 sendMessage(target, "§e" + player.getName().getString() + " §cdisconnected. Their trade request was cancelled.");
             }
 
+            TradeLogger.getInstance().logCancelled(trade, player.getName().getString() + " disconnected");
+
             SimplePlayerTrades.LOGGER.info("[Trades] {} disconnected, cancelled their outgoing trade request.",
                     player.getName().getString());
         }
@@ -198,9 +207,13 @@ public class TradeManager {
                 sendMessage(requester, "§e" + player.getName().getString() + " §cdisconnected. Your trade request was cancelled.");
             }
 
+            TradeLogger.getInstance().logCancelled(trade, player.getName().getString() + " disconnected");
+
             SimplePlayerTrades.LOGGER.info("[Trades] {} disconnected, their incoming trade request was cleaned up.",
                     player.getName().getString());
         }
+
+
     }
 
     // --- Private Helpers ---
@@ -239,7 +252,8 @@ public class TradeManager {
         cancelActiveTrade(
                 trade, player, server,
                 "§cTrade cancelled.",
-                "§e" + player.getName().getString() + " §cclosed the trade."
+                "§e" + player.getName().getString() + " §cclosed the trade.",
+                player.getName().getString() + " closed the GUI"
         );
     }
 
@@ -257,9 +271,7 @@ public class TradeManager {
             if (col == 4 || row == 5) continue;
 
             // Ownership based on inventory index
-            UUID ownerUuid = (col < 4)
-                    ? trade.getRequesterUuid()
-                    : trade.getTargetUuid();
+            UUID ownerUuid = (col < 4) ? trade.getRequesterUuid() : trade.getTargetUuid();
 
             ServerPlayer owner = server.getPlayerList().getPlayer(ownerUuid);
 
@@ -277,7 +289,7 @@ public class TradeManager {
     }
 
 
-    private void cancelActiveTrade(ActiveTrade trade, ServerPlayer initiator, MinecraftServer server, String initiatorMsg, String otherMsg) {
+    private void cancelActiveTrade(ActiveTrade trade, ServerPlayer initiator, MinecraftServer server, String initiatorMsg, String otherMsg, String reason) {
         // Remove first to prevent recursion from closeContainer()
         activeTrades.remove(trade.getRequesterUuid());
         activeTrades.remove(trade.getTargetUuid());
@@ -296,6 +308,8 @@ public class TradeManager {
         initiator.closeContainer();
         sendMessage(initiator, initiatorMsg);
 
+        TradeLogger.getInstance().logCancelled(trade, reason);
+
         SimplePlayerTrades.LOGGER.info("[Trades] Trade between {} and {} was cancelled.",
                 trade.getRequesterName(), trade.getTargetName());
     }
@@ -307,7 +321,8 @@ public class TradeManager {
         cancelActiveTrade(
                 trade, player, server,
                 "§cYou cancelled the trade.",
-                "§e" + player.getName().getString() + " §cdenied the trade."
+                "§e" + player.getName().getString() + " §cdenied the trade.",
+                player.getName().getString() + " clicked deny"
         );
     }
 
@@ -352,19 +367,21 @@ public class TradeManager {
 
         // Collect items from each side before clearing
         List<ItemStack> requesterItems = new ArrayList<>();
-        List<ItemStack> targetItems    = new ArrayList<>();
+        List<ItemStack> targetItems = new ArrayList<>();
 
         for (int i = 0; i < 45; i++) { // rows 0-4 only, skip button row
             ItemStack stack = inventory.getItem(i);
             if (stack.isEmpty()) continue;
             int col = i % 9;
-            if      (col < 4) requesterItems.add(stack.copy());
+            if (col < 4) requesterItems.add(stack.copy());
             else if (col > 4) targetItems.add(stack.copy());
             inventory.setItem(i, ItemStack.EMPTY);
         }
 
         ServerPlayer requester = server.getPlayerList().getPlayer(trade.getRequesterUuid());
-        ServerPlayer target    = server.getPlayerList().getPlayer(trade.getTargetUuid());
+        ServerPlayer target = server.getPlayerList().getPlayer(trade.getTargetUuid());
+
+        TradeLogger.getInstance().logCompleted(trade, requesterItems, targetItems);
 
         // Give target's items to requester
         if (requester != null) {
