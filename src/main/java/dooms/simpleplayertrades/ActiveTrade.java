@@ -24,6 +24,7 @@ public class ActiveTrade {
     private boolean targetConfirmed = false;
     private TradeState state;
     private final SimpleContainer tradeInventory = new SimpleContainer(54);
+    private final long createdAt = System.currentTimeMillis();
 
     public ActiveTrade(ServerPlayer requester, ServerPlayer target) {
         this.requesterUuid = requester.getUUID();
@@ -102,5 +103,13 @@ public class ActiveTrade {
         } else {
             targetConfirmed = false;
         }
+    }
+
+
+    /**
+     * Returns true if this trade request has been pending for longer than the given timeout in seconds.
+     */
+    public boolean isTimedOut(int timeoutSeconds) {
+        return System.currentTimeMillis() - createdAt > timeoutSeconds * 1000L;
     }
 }

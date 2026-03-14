@@ -1,5 +1,6 @@
 package dooms.simpleplayertrades;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -37,6 +38,10 @@ public class TradeManager {
 
     private final Map<UUID, ActiveTrade> activeTrades = new HashMap<>();
 
+    private static final int TIMEOUT_SECONDS = 60;
+
+    private int tickCounter = 0;
+
     // --- Event Registration ---
 
     /**
@@ -47,6 +52,14 @@ public class TradeManager {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
                 handleDisconnect(handler.getPlayer(), server)
         );
+
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            tickCounter++;
+            if (tickCounter >= 20) { // once per second
+                tickCounter = 0;
+                checkTimeouts(server);
+            }
+        });
     }
 
     // --- Public API ---
@@ -413,6 +426,35 @@ public class TradeManager {
     private void playPling(ServerPlayer player) {
         if (player == null) return;
         player.playSound(SoundEvents.NOTE_BLOCK_PLING.value(), 1.0f, 2.0f);
+    }
+
+    /**
+     * Called once per second. Cancels any pending trade requests that have exceeded the timeout.
+     */
+    private void checkTimeouts(MinecraftServer server) {
+        // Collect expired entries first to avoid modifying the map while iterating
+        List<ActiveTrade> expired = pendingTradesByRequester.values().stream()
+                .filter(trade -> trade.isTimedOut(TIMEOUT_SECONDS))
+                .toList();
+
+        for (ActiveTrade trade : expired) {
+            pendingTradesByRequester.remove(trade.getRequesterUuid());
+            pendingTradesByTarget.remove(trade.getTargetUuid());
+
+            ServerPlayer requester = server.getPlayerList().getPlayer(trade.getRequesterUuid());
+            ServerPlayer target    = server.getPlayerList().getPlayer(trade.getTargetUuid());
+
+            if (requester != null) {
+                sendMessage(requester, "§cYour trade request to §e" + trade.getTargetName() + " §cexpired.");
+            }
+            if (target != null) {
+                sendMessage(target, "§eThe trade request from §e" + trade.getRequesterName() + " §eexpired.");
+            }
+
+            TradeLogger.getInstance().logCancelled(trade, "Request timed out after " + TIMEOUT_SECONDS + " seconds");
+            SimplePlayerTrades.LOGGER.info("[Trades] Trade request from {} to {} timed out.",
+                    trade.getRequesterName(), trade.getTargetName());
+        }
     }
 
 }
