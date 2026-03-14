@@ -33,7 +33,6 @@ public class TradeLogger {
 
     // --- Constants ---
 
-    private static final int MAX_LOG_FILES = 30;
     private static final DateTimeFormatter FILE_NAME_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
     private static final DateTimeFormatter ENTRY_FORMAT =
@@ -43,7 +42,7 @@ public class TradeLogger {
 
     // --- State ---
 
-    private boolean enabled = true;
+    private boolean enabled = ModConfig.getInstance().isLoggingEnabled();
     private Path currentLogFile = null;
 
     // --- Initialization ---
@@ -76,7 +75,7 @@ public class TradeLogger {
                 .sorted(Comparator.comparing(p -> p.getFileName().toString()))
                 .collect(Collectors.toList());
 
-        while (logFiles.size() >= MAX_LOG_FILES) {
+        while (logFiles.size() >= ModConfig.getInstance().getMaxLogFiles()) {
             Files.deleteIfExists(logFiles.remove(0));
             SimplePlayerTrades.LOGGER.info("[Trades] Rotated old trade log file.");
         }

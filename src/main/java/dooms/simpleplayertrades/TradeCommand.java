@@ -8,6 +8,7 @@ import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.players.NameAndId;
 
 public class TradeCommand {
 
@@ -52,8 +53,20 @@ public class TradeCommand {
     private static int executeTrade(CommandContext<CommandSourceStack> context) {
         try {
             ServerPlayer sender = context.getSource().getPlayerOrException();
+
+            if (!ModConfig.getInstance().isTradingEnabled()) {
+                sender.sendSystemMessage(Component.literal("§cTrading is currently disabled on this server."));
+                return 0;
+            }
+
             ServerPlayer target = EntityArgument.getPlayer(context, "player");
             MinecraftServer server = context.getSource().getServer();
+
+            if (ModConfig.getInstance().isRequireOp() &&
+                    !java.util.Arrays.asList(server.getPlayerList().getOpNames()).contains(sender.getName().getString())) {
+                sender.sendSystemMessage(Component.literal("§cYou do not have permission to trade."));
+                return 0;
+            }
 
             if (sender.getUUID().equals(target.getUUID())) {
                 sender.sendSystemMessage(Component.literal("§cYou cannot trade with yourself."));

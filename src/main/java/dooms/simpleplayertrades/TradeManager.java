@@ -38,9 +38,9 @@ public class TradeManager {
 
     private final Map<UUID, ActiveTrade> activeTrades = new HashMap<>();
 
-    private static final int TIMEOUT_SECONDS = 60;
-
     private int tickCounter = 0;
+
+    private final Map<UUID, Long> cooldowns = new HashMap<>();
 
     // --- Event Registration ---
 
@@ -68,6 +68,19 @@ public class TradeManager {
         UUID senderUuid = sender.getUUID();
         UUID targetUuid = target.getUUID();
 
+        int cooldownSeconds = ModConfig.getInstance().getRequestCooldownSeconds();
+        if (cooldownSeconds > 0) {
+            long cooldownMs = cooldownSeconds * 1000L;
+            long lastRequest = cooldowns.getOrDefault(senderUuid, 0L);
+            long remainingMs = (lastRequest + cooldownMs) - System.currentTimeMillis();
+
+            if (remainingMs > 0) {
+                long remainingSeconds = (remainingMs / 1000) + 1;
+                sendMessage(sender, "§cYou must wait §e" + remainingSeconds + " §cseconds before sending another trade request.");
+                return;
+            }
+        }
+
         // Guard: sender already has an outgoing request
         if (pendingTradesByRequester.containsKey(senderUuid)) {
             sendMessage(sender, "§cYou already have a pending trade request. Use §e/tradecancel §cto cancel it.");
@@ -80,9 +93,11 @@ public class TradeManager {
             return;
         }
 
+
         ActiveTrade trade = new ActiveTrade(sender, target);
         pendingTradesByRequester.put(senderUuid, trade);
         pendingTradesByTarget.put(targetUuid, trade);
+        cooldowns.put(senderUuid, System.currentTimeMillis());
 
         sendMessage(sender, "§aTrade request sent to §e" + target.getName().getString() + "§a.");
         sendMessage(target,
@@ -434,7 +449,7 @@ public class TradeManager {
     private void checkTimeouts(MinecraftServer server) {
         // Collect expired entries first to avoid modifying the map while iterating
         List<ActiveTrade> expired = pendingTradesByRequester.values().stream()
-                .filter(trade -> trade.isTimedOut(TIMEOUT_SECONDS))
+                .filter(trade -> trade.isTimedOut(ModConfig.getInstance().getTimeoutSeconds()))
                 .toList();
 
         for (ActiveTrade trade : expired) {
@@ -451,7 +466,7 @@ public class TradeManager {
                 sendMessage(target, "§eThe trade request from §e" + trade.getRequesterName() + " §eexpired.");
             }
 
-            TradeLogger.getInstance().logCancelled(trade, "Request timed out after " + TIMEOUT_SECONDS + " seconds");
+            TradeLogger.getInstance().logCancelled(trade, "Request timed out after " + ModConfig.getInstance().getTimeoutSeconds() + " seconds");
             SimplePlayerTrades.LOGGER.info("[Trades] Trade request from {} to {} timed out.",
                     trade.getRequesterName(), trade.getTargetName());
         }

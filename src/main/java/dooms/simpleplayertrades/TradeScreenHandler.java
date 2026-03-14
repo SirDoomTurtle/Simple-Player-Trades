@@ -211,11 +211,8 @@ public class TradeScreenHandler extends AbstractContainerMenu {
     public static void updateConfirmVisuals(SimpleContainer inventory, ActiveTrade trade) {
         boolean anyConfirmed = trade.isConfirmed(true) || trade.isConfirmed(false);
 
-        ItemStack divider = new ItemStack(anyConfirmed
-                ? Items.LIME_STAINED_GLASS_PANE
-                : Items.BLACK_STAINED_GLASS_PANE);
-        divider.set(DataComponents.CUSTOM_NAME,
-                Component.literal(" ").withStyle(s -> s.withItalic(false)));
+        ItemStack divider = new ItemStack(anyConfirmed ? Items.LIME_STAINED_GLASS_PANE : Items.BLACK_STAINED_GLASS_PANE);
+        divider.set(DataComponents.CUSTOM_NAME, Component.literal(" ").withStyle(s -> s.withItalic(false)));
 
         // Only update rows 0-4 of the divider — row 5 stays black as part of the button row
         for (int row = 0; row < 5; row++) {

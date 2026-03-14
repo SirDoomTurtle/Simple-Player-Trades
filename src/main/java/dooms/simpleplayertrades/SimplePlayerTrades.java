@@ -13,6 +13,7 @@ public class SimplePlayerTrades implements ModInitializer {
 	public void onInitialize() {
 		LOGGER.info("[Trades] Loading Simple Player Trades...");
 
+		ModConfig.getInstance().initialize();
 		TradeCommand.register();
 		TradeManager.getInstance().registerEvents();
 		TradeLogger.getInstance().initialize();
