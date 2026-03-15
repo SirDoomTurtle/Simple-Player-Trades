@@ -3,7 +3,7 @@
 A simple server-side Fabric mod for player-to-player item trading. Players connect with a vanilla client, no mods required on their end.
 
 
-![Showcase](https://raw.githubusercontent.com/SirDoomTurtle/Simple-Player-Trades/tree/main/assets/showcase.gif)
+![Showcase](https://raw.githubusercontent.com/SirDoomTurtle/Simple-Player-Trades/main/assets/showcase.gif)
 
 ---
 
