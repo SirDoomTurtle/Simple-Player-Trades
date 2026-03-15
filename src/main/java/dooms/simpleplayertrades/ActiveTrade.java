@@ -37,10 +37,10 @@ public class ActiveTrade {
     // --- Getters ---
 
     public UUID getRequesterUuid() { return requesterUuid; }
-    public UUID getTargetUuid()    { return targetUuid; }
+    public UUID getTargetUuid() { return targetUuid; }
     public String getRequesterName() { return requesterName; }
-    public String getTargetName()    { return targetName; }
-    public TradeState getState()   { return state; }
+    public String getTargetName() { return targetName; }
+    public TradeState getState() { return state; }
     public SimpleContainer getTradeInventory() { return tradeInventory; }
 
     // --- State ---

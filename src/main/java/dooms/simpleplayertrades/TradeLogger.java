@@ -2,7 +2,6 @@ package dooms.simpleplayertrades;
 
 import net.minecraft.world.item.ItemStack;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

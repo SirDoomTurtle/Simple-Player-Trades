@@ -13,7 +13,6 @@ import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.inventory.ClickType;
 
 public class TradeScreenHandler extends AbstractContainerMenu {
 
@@ -21,7 +20,6 @@ public class TradeScreenHandler extends AbstractContainerMenu {
     private final MinecraftServer server;
     private final boolean isRequester;
     private final ActiveTrade trade;
-
     private static final int ACCEPT_SLOT = 46;
     private static final int DENY_SLOT = 52;
 
@@ -103,23 +101,23 @@ public class TradeScreenHandler extends AbstractContainerMenu {
         border.set(DataComponents.CUSTOM_NAME,
                 Component.literal(" ").withStyle(s -> s.withItalic(false)));
 
-        // Fill center divider column
+        // center divider column
         for (int row = 0; row < 6; row++) {
             inventory.setItem(4 + row * 9, border.copy());
         }
 
-        // Fill entire bottom row with border
+        // bottom row with border
         for (int col = 0; col < 9; col++) {
             inventory.setItem(45 + col, border.copy());
         }
 
-        // Overwrite slot 46 with accept button
+        // slot 46 accept button
         ItemStack accept = new ItemStack(Items.LIME_CONCRETE);
         accept.set(DataComponents.CUSTOM_NAME,
                 Component.literal("✔ Accept Trade").withStyle(s -> s.withItalic(false).withColor(0x55FF55)));
         inventory.setItem(46, accept);
 
-        // Overwrite slot 52 with deny button
+        // slot 52 deny button
         ItemStack deny = new ItemStack(Items.RED_CONCRETE);
         deny.set(DataComponents.CUSTOM_NAME,
                 Component.literal("✘ Cancel Trade").withStyle(s -> s.withItalic(false).withColor(0xFF5555)));
@@ -140,14 +138,12 @@ public class TradeScreenHandler extends AbstractContainerMenu {
         updateConfirmVisuals(tradeInventory, trade);
 
         if (slotIndex < 54) {
-            // Shift-clicking from trade inventory → move to player inventory
+            // Shift-clicking from trade inventory
             if (!moveItemStackTo(stack, 54, 90, false)) {
                 return ItemStack.EMPTY;
             }
         } else {
-            // Shift-clicking from player inventory → move to trade inventory
-            // mayPlace() on each slot enforces permissions automatically
-            // so we can safely pass the full trade range 0-54
+            // Shift-clicking from player inventory
             if (!moveItemStackTo(stack, 0, 54, false)) {
                 return ItemStack.EMPTY;
             }
@@ -159,7 +155,6 @@ public class TradeScreenHandler extends AbstractContainerMenu {
             slot.setChanged();
         }
 
-        // Nothing actually moved
         if (stack.getCount() == originalStack.getCount()) {
             return ItemStack.EMPTY;
         }
@@ -194,7 +189,7 @@ public class TradeScreenHandler extends AbstractContainerMenu {
         }
 
         // For any click on the player's own trade item slots,
-        // reset their confirmation — they are changing what they're offering
+        // reset their confirmation
         if (slotIndex >= 0 && slotIndex < 54) {
             int col = slotIndex % 9;
             int row = slotIndex / 9;
@@ -214,7 +209,7 @@ public class TradeScreenHandler extends AbstractContainerMenu {
         ItemStack divider = new ItemStack(anyConfirmed ? Items.LIME_STAINED_GLASS_PANE : Items.BLACK_STAINED_GLASS_PANE);
         divider.set(DataComponents.CUSTOM_NAME, Component.literal(" ").withStyle(s -> s.withItalic(false)));
 
-        // Only update rows 0-4 of the divider — row 5 stays black as part of the button row
+        // update rows 0-4 of the divider
         for (int row = 0; row < 5; row++) {
             inventory.setItem(4 + row * 9, divider.copy());
         }

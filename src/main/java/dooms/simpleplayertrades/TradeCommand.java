@@ -8,7 +8,9 @@ import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.players.NameAndId;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import java.util.concurrent.CompletableFuture;
 
 public class TradeCommand {
 
@@ -23,6 +25,7 @@ public class TradeCommand {
             dispatcher.register(
                     Commands.literal("trade")
                             .then(Commands.argument("player", EntityArgument.player())
+                                    .suggests(TradeCommand::suggestTradablePlayers)
                                     .executes(TradeCommand::executeTrade))
             );
 
@@ -30,13 +33,16 @@ public class TradeCommand {
             dispatcher.register(
                     Commands.literal("tradeaccept")
                             .then(Commands.argument("player", EntityArgument.player())
+                                    .suggests(TradeCommand::suggestIncomingRequest)
                                     .executes(TradeCommand::executeTradeAccept))
             );
+
 
             // /tradedeny <player>
             dispatcher.register(
                     Commands.literal("tradedeny")
                             .then(Commands.argument("player", EntityArgument.player())
+                                    .suggests(TradeCommand::suggestIncomingRequest)
                                     .executes(TradeCommand::executeTradeDeny))
             );
 
@@ -124,5 +130,49 @@ public class TradeCommand {
             SimplePlayerTrades.LOGGER.error("[Trades] Error in /tradecancel command", e);
             return 0;
         }
+    }
+
+    private static CompletableFuture<Suggestions> suggestTradablePlayers(
+            CommandContext<CommandSourceStack> context,
+            SuggestionsBuilder builder) {
+
+        ServerPlayer sender;
+        try {
+            sender = context.getSource().getPlayerOrException();
+        } catch (Exception e) {
+            return builder.buildFuture();
+        }
+
+        // Only suggest online players that are not the sender
+        context.getSource().getServer().getPlayerList().getPlayers().stream()
+                .filter(p -> !p.getUUID().equals(sender.getUUID()))
+                .map(p -> p.getName().getString())
+                .forEach(builder::suggest);
+
+        return builder.buildFuture();
+    }
+
+
+    private static CompletableFuture<Suggestions> suggestIncomingRequest(
+            CommandContext<CommandSourceStack> context,
+            SuggestionsBuilder builder) {
+
+        ServerPlayer player;
+        try {
+            player = context.getSource().getPlayerOrException();
+        } catch (Exception e) {
+            return builder.buildFuture();
+        }
+
+        // Only suggest the player who sent this player a trade request
+        ActiveTrade trade = TradeManager.getInstance().getPendingRequestFor(player);
+        if (trade != null) {
+            context.getSource().getServer().getPlayerList().getPlayers().stream()
+                    .filter(p -> p.getUUID().equals(trade.getRequesterUuid()))
+                    .map(p -> p.getName().getString())
+                    .forEach(builder::suggest);
+        }
+
+        return builder.buildFuture();
     }
 }

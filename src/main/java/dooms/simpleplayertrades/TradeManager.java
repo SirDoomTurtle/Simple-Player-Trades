@@ -21,9 +21,7 @@ public class TradeManager {
     // --- Singleton ---
 
     private static final TradeManager INSTANCE = new TradeManager();
-
     private TradeManager() {}
-
     public static TradeManager getInstance() {
         return INSTANCE;
     }
@@ -37,9 +35,7 @@ public class TradeManager {
     private final Map<UUID, ActiveTrade> pendingTradesByTarget = new HashMap<>();
 
     private final Map<UUID, ActiveTrade> activeTrades = new HashMap<>();
-
     private int tickCounter = 0;
-
     private final Map<UUID, Long> cooldowns = new HashMap<>();
 
     // --- Event Registration ---
@@ -295,7 +291,7 @@ public class TradeManager {
             int col = i % 9;
             int row = i / 9;
 
-            // Border and button slots should never have real items, but skip them anyway
+            // Border and button slots should never have real items but skip them anyway
             if (col == 4 || row == 5) continue;
 
             // Ownership based on inventory index
@@ -470,6 +466,14 @@ public class TradeManager {
             SimplePlayerTrades.LOGGER.info("[Trades] Trade request from {} to {} timed out.",
                     trade.getRequesterName(), trade.getTargetName());
         }
+    }
+
+
+    /**
+     * Returns the pending trade request directed at the given player, or null if there is none.
+     */
+    public ActiveTrade getPendingRequestFor(ServerPlayer player) {
+        return pendingTradesByTarget.get(player.getUUID());
     }
 
 }
