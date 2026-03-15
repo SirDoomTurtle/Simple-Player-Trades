@@ -8,12 +8,12 @@ A simple server-side Fabric mod for player-to-player item trading. Players conne
 
 - Server-side only, vanilla clients work fine
 - Both players get a shared trade GUI with their own items on the left and the other player's items on the right
-- Players can only interact with their own side of the window
 - Both players must click the accept button before anything is exchanged
 - Moving items automatically resets your confirmation, so nothing goes through by accident
 - The center divider turns green when a player confirms, and a sound notifies the other player
 - If someone disconnects mid-trade, all items are returned to their owners
 - Safe against inventory management client mods
+- Full config file for tweaking settings
 
 ---
 
