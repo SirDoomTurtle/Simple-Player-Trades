@@ -17,6 +17,9 @@ A simple server-side Fabric mod for player-to-player item trading. Players conne
 - If someone disconnects mid-trade, all items are returned to their owners
 - Safe against inventory management client mods
 - Full config file for tweaking settings
+- Logging all trade interactions to file
+- Trade request cooldowns/timeouts
+- optional trade restriction to OPed players only
 
 ---
 
