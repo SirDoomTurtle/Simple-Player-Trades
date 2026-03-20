@@ -200,44 +200,38 @@ public class TradeManager {
         sendMessage(canceler, "§cYou have no active trade to cancel.");
     }
 
-    /**
-     * Called automatically on player disconnect.
-     * Ensures no pending trade state is left dangling.
-     */
     public void handleDisconnect(ServerPlayer player, MinecraftServer server) {
         UUID playerUuid = player.getUUID();
 
         if (pendingTradesByRequester.containsKey(playerUuid)) {
-            ActiveTrade trade = pendingTradesByRequester.remove(playerUuid);
-            pendingTradesByTarget.remove(trade.getTargetUuid());
+            ActiveTrade pendingTrade = pendingTradesByRequester.remove(playerUuid);
+            pendingTradesByTarget.remove(pendingTrade.getTargetUuid());
 
-            ServerPlayer target = server.getPlayerList().getPlayer(trade.getTargetUuid());
+            ServerPlayer target = server.getPlayerList().getPlayer(pendingTrade.getTargetUuid());
             if (target != null) {
                 sendMessage(target, "§e" + player.getName().getString() + " §cdisconnected. Their trade request was cancelled.");
             }
-
-            TradeLogger.getInstance().logCancelled(trade, player.getName().getString() + " disconnected");
 
             SimplePlayerTrades.LOGGER.info("[Trades] {} disconnected, cancelled their outgoing trade request.",
                     player.getName().getString());
         }
 
         if (pendingTradesByTarget.containsKey(playerUuid)) {
-            ActiveTrade trade = pendingTradesByTarget.remove(playerUuid);
-            pendingTradesByRequester.remove(trade.getRequesterUuid());
+            ActiveTrade pendingTrade = pendingTradesByTarget.remove(playerUuid);
+            pendingTradesByRequester.remove(pendingTrade.getRequesterUuid());
 
-            ServerPlayer requester = server.getPlayerList().getPlayer(trade.getRequesterUuid());
+            ServerPlayer requester = server.getPlayerList().getPlayer(pendingTrade.getRequesterUuid());
             if (requester != null) {
                 sendMessage(requester, "§e" + player.getName().getString() + " §cdisconnected. Your trade request was cancelled.");
             }
-
-            TradeLogger.getInstance().logCancelled(trade, player.getName().getString() + " disconnected");
 
             SimplePlayerTrades.LOGGER.info("[Trades] {} disconnected, their incoming trade request was cleaned up.",
                     player.getName().getString());
         }
 
-
+        if (activeTrades.containsKey(playerUuid)) {
+            handleGuiClose(player, server);
+        }
     }
 
     // --- Private Helpers ---
@@ -273,12 +267,35 @@ public class TradeManager {
         ActiveTrade trade = activeTrades.get(playerUuid);
         if (trade == null) return;
 
-        cancelActiveTrade(
-                trade, player, server,
-                "§cTrade cancelled.",
-                "§e" + player.getName().getString() + " §cclosed the trade.",
-                player.getName().getString() + " closed the GUI"
-        );
+        activeTrades.remove(trade.getRequesterUuid());
+        activeTrades.remove(trade.getTargetUuid());
+
+        boolean isDisconnecting = server.getPlayerList().getPlayer(playerUuid) == null;
+
+        if (isDisconnecting) {
+            // Drop the disconnecting player's items at their location
+            // Never call getInventory().add() on a disconnecting player — it corrupts their save data
+            returnItemsDisconnecting(trade, player, server);
+
+            ServerPlayer other = server.getPlayerList().getPlayer(
+                    trade.getOtherPlayerUuid(playerUuid)
+            );
+            if (other != null) {
+                other.closeContainer();
+                sendMessage(other, "§e" + player.getName().getString() + " §cdisconnected. The trade was cancelled. Check the ground for your items.");
+            }
+
+            TradeLogger.getInstance().logCancelled(trade, player.getName().getString() + " disconnected");
+            SimplePlayerTrades.LOGGER.info("[Trades] Trade between {} and {} cancelled due to disconnect.",
+                    trade.getRequesterName(), trade.getTargetName());
+        } else {
+            cancelActiveTrade(
+                    trade, player, server,
+                    "§cTrade cancelled.",
+                    "§e" + player.getName().getString() + " §cclosed the trade.",
+                    player.getName().getString() + " closed the GUI"
+            );
+        }
     }
 
     private void returnItems(ActiveTrade trade, MinecraftServer server) {
@@ -304,8 +321,47 @@ public class TradeManager {
                     owner.drop(stack, false);
                 }
             } else {
-                SimplePlayerTrades.LOGGER.warn("[Trades] Could not return item {} to offline player {}",
-                        stack.getItem(), ownerUuid);
+                SimplePlayerTrades.LOGGER.warn("[Trades] Player {} offline! Dropping item {} to prevent deletion.", ownerUuid, stack.getItem());
+                // Failsafe: drop it at the location of the player who triggered the close
+                ServerPlayer survivingPlayer = server.getPlayerList().getPlayer(
+                        trade.getOtherPlayerUuid(ownerUuid)
+                );
+                if (survivingPlayer != null) {
+                    survivingPlayer.drop(stack, false);
+                }
+            }
+
+            inventory.setItem(i, ItemStack.EMPTY);
+        }
+    }
+
+    private void returnItemsDisconnecting(ActiveTrade trade, ServerPlayer disconnectedPlayer, MinecraftServer server) {
+        SimpleContainer inventory = trade.getTradeInventory();
+        UUID disconnectedUuid = disconnectedPlayer.getUUID();
+
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack stack = inventory.getItem(i);
+            if (stack.isEmpty()) continue;
+
+            int col = i % 9;
+            int row = i / 9;
+            if (col == 4 || row == 5) continue;
+
+            UUID ownerUuid = (col < 4)
+                    ? trade.getRequesterUuid()
+                    : trade.getTargetUuid();
+
+            if (ownerUuid.equals(disconnectedUuid)) {
+                // FIX: Exclusively drop the item. Bypasses the RAM inventory entirely.
+                // The 'true' flag ensures it drops around the player safely.
+                disconnectedPlayer.drop(stack.copy(), true, false);
+            } else {
+                ServerPlayer other = server.getPlayerList().getPlayer(ownerUuid);
+                if (other != null) {
+                    if (!other.getInventory().add(stack)) {
+                        other.drop(stack, false);
+                    }
+                }
             }
 
             inventory.setItem(i, ItemStack.EMPTY);

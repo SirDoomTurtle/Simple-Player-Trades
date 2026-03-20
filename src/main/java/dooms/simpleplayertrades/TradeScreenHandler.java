@@ -170,8 +170,8 @@ public class TradeScreenHandler extends AbstractContainerMenu {
 
     @Override
     public void removed(Player player) {
-        super.removed(player);
         TradeManager.getInstance().handleGuiClose((ServerPlayer) player, server);
+        super.removed(player);
     }
 
     @Override
